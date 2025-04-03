@@ -1,0 +1,36 @@
+{
+  "name": "my-app",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --turbopack",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "@reduxjs/toolkit": "^2.6.1",
+    "axios": "^1.8.4",
+    "fabric": "^6.6.2",
+    "file-saver": "^2.0.5",
+    "formidable": "^3.5.2",
+    "jszip": "^3.10.1",
+    "next": "15.2.4",
+    "pdf-lib": "^1.17.1",
+    "pdf-parse": "^1.1.1",
+    "pdfjs-dist": "^5.1.91",
+    "pizzip": "^3.1.8",
+    "pptxgenjs": "^3.12.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-redux": "^9.2.0",
+    "tailwindcss": "^4.0.17",
+    "tesseract.js": "^6.0.0"
+  },
+  "devDependencies": {
+    "@eslint/eslintrc": "^3.0.0",
+    "@tailwindcss/postcss": "^4.0.12",
+    "eslint": "^9.0.0",
+    "eslint-config-next": "15.2.4"
+  }
+}
