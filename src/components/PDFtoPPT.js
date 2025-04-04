@@ -23,8 +23,8 @@ export default function PDFtoPPT() {
             return;
         }
 
-        
-        const MAX_FILE_SIZE = 5 * 1024 * 1024; 
+
+        const MAX_FILE_SIZE = 5 * 1024 * 1024;
         if (file.size > MAX_FILE_SIZE) {
             setMessage("File is too large. Max 5MB allowed.");
             return;
@@ -32,7 +32,7 @@ export default function PDFtoPPT() {
 
         setIsLoading(true);
         setMessage("Extracting PDF content...");
-        setPdfText(""); 
+        setPdfText("");
         setPdfFile(file);
 
         const formData = new FormData();
@@ -64,10 +64,10 @@ export default function PDFtoPPT() {
         if (!file) return;
 
         const reader = new FileReader();
-        reader.readAsArrayBuffer(file); 
+        reader.readAsArrayBuffer(file);
 
         reader.onload = (e) => {
-            setPptFile(e.target.result); 
+            setPptFile(e.target.result);
             setTemplateName(file.name);
             setMessage(`Template "${file.name}" selected.`);
         };
@@ -94,7 +94,6 @@ export default function PDFtoPPT() {
 
         try {
             let zip = await JSZip.loadAsync(pptFile);
-
             let slideFiles = Object.keys(zip.files).filter(file =>
                 file.startsWith("ppt/slides/slide") && file.endsWith(".xml")
             );
@@ -104,78 +103,28 @@ export default function PDFtoPPT() {
             for (let i = 0; i < slidesToKeep; i++) {
                 let filePath = slideFiles[i];
                 let slideXML = await zip.file(filePath).async("string");
-
                 let { title, subtitle, content } = formattedTextGemini[i];
 
-                
-                const titleMatch = slideXML.match(/<a:p>.*?<a:t>(.*?)<\/a:t>.*?<\/a:p>/s);
-                let titleStylePrefix = "";
-                if (titleMatch) {
-                    
-                    titleStylePrefix = titleMatch[0].split('<a:t>')[0];
-                    
-                    slideXML = slideXML.replace(/<a:p>.*?<a:t>.*?<\/a:t>.*?<\/a:p>/s,
-                        `${titleStylePrefix}<a:t>${title}</a:t></a:r></a:p>`);
+                // Ensure text replacement properly clears old content
+                slideXML = slideXML.replace(/<a:t>.*?<\/a:t>/gs, "");
+
+                // Find text container
+                let textContainerMatch = slideXML.match(/<p:txBody>.*?<\/p:txBody>/s);
+                if (textContainerMatch) {
+                    let textContainer = textContainerMatch[0];
+
+                    let newContentXML = `<p:txBody>
+                        <a:p><a:r><a:t>${title}</a:t></a:r></a:p>
+                        ${subtitle ? `<a:p><a:r><a:t>${subtitle}</a:t></a:r></a:p>` : ""}
+                        ${content.map(point => `<a:p><a:r><a:t>• ${point}</a:t></a:r></a:p>`).join('')}
+                    </p:txBody>`;
+
+                    // Replace full text container
+                    slideXML = slideXML.replace(textContainer, newContentXML);
                 }
 
-                
-                if (subtitle) {
-                    
-                    const subtitleMatch = slideXML.match(/<a:p>.*?<a:t>.*?<\/a:t>.*?<\/a:p>/gs);
-                    if (subtitleMatch && subtitleMatch.length > 1) {
-                        
-                        const subtitleStylePrefix = subtitleMatch[1].split('<a:t>')[0];
-                        
-                        slideXML = slideXML.replace(subtitleMatch[1],
-                            `${subtitleStylePrefix}<a:t>${subtitle}</a:t></a:r></a:p>`);
-                    } else {
-                        
-                        const insertAfter = titleMatch ? titleMatch[0] : '';
-                        if (insertAfter) {
-                            slideXML = slideXML.replace(insertAfter,
-                                `${insertAfter}${titleStylePrefix.replace(/<a:b\s*\/>/, '')}<a:t>${subtitle}</a:t></a:r></a:p>`);
-                        }
-                    }
-                }
-
-                
-                if (content && content.length > 0) {
-                    
-                    const contentMatch = slideXML.match(/<a:p>.*?<a:t>.*?<\/a:t>.*?<\/a:p>/gs);
-
-                    if (contentMatch && contentMatch.length > 2) {
-                        
-                        const contentStylePrefix = contentMatch[2].split('<a:t>')[0];
-                        
-                        for (let j = 2; j < contentMatch.length; j++) {
-                            slideXML = slideXML.replace(contentMatch[j], '');
-                        }
-
-                        
-                        const insertAfter = contentMatch[1] || contentMatch[0];
-                        const bulletPointsXML = content.map(point =>
-                            `${contentStylePrefix}<a:t>• ${point}</a:t></a:r></a:p>`
-                        ).join('');
-
-                        slideXML = slideXML.replace(insertAfter, `${insertAfter}${bulletPointsXML}`);
-                    } else {
-                        
-                        const textShape = slideXML.match(/<p:txBody>.*?<\/p:txBody>/s);
-                        if (textShape) {
-                            const endOfTxBody = textShape[0].lastIndexOf('</p:txBody>');
-                            const textShapeStart = textShape[0].substring(0, endOfTxBody);
-                            const textShapeEnd = textShape[0].substring(endOfTxBody);
-
-                            const contentStyle = titleStylePrefix.replace(/<a:b\s*\/>/, ''); 
-                            const bulletPointsXML = content.map(point =>
-                                `<a:p>${contentStyle}<a:t>• ${point}</a:t></a:r></a:p>`
-                            ).join('');
-
-                            const newTextShape = `${textShapeStart}${bulletPointsXML}${textShapeEnd}`;
-                            slideXML = slideXML.replace(textShape[0], newTextShape);
-                        }
-                    }
-                }
+                // Update slide XML in the zip
+                zip.file(filePath, slideXML);
             }
 
             // Remove extra slides if needed
@@ -190,8 +139,7 @@ export default function PDFtoPPT() {
             });
 
             saveAs(updatedPptxBlob, `Updated-${templateName}`);
-
-            setMessage("PowerPoint updated successfully with properly formatted slides!");
+            setMessage("PowerPoint updated successfully!");
         } catch (error) {
             console.error("Error modifying PPT:", error);
             setMessage("Error modifying PowerPoint. Please try again.");
@@ -199,6 +147,111 @@ export default function PDFtoPPT() {
             setIsLoading(false);
         }
     };
+
+    // const replaceTextInPPTX = async (formattedTextGemini) => {
+    //     if (!pptFile) {
+    //         setMessage("Please upload a PowerPoint template first.");
+    //         return;
+    //     }
+    //     if (!formattedTextGemini || formattedTextGemini.length === 0) {
+    //         setMessage("No structured slide data available.");
+    //         return;
+    //     }
+
+    //     setIsLoading(true);
+    //     setMessage("Modifying PowerPoint...");
+
+    //     try {
+    //         let zip = await JSZip.loadAsync(pptFile);
+    //         let slideFiles = Object.keys(zip.files)
+    //             .filter(file => file.startsWith("ppt/slides/slide") && file.endsWith(".xml"))
+    //             .sort((a, b) => {
+    //                 let numA = parseInt(a.match(/slide(\d+).xml/)[1], 10);
+    //                 let numB = parseInt(b.match(/slide(\d+).xml/)[1], 10);
+    //                 return numA - numB;
+    //             });
+
+
+    //         let slidesToKeep = Math.min(slideFiles.length, formattedTextGemini.length);
+    //         console.log(slidesToKeep)
+    //         console.log(slideFiles.length, formattedTextGemini.length, slideFiles.length > slidesToKeep)
+
+    //         for (let i = 0; i < slidesToKeep ; i++) {
+    //             let filePath = slideFiles[i];
+    //             let slideXML = await zip.file(filePath).async("string");
+    //             let { title, subtitle, content } = formattedTextGemini[i];
+
+    //             // **Preserve font and style settings**
+    //             let fontMatch = slideXML.match(/<a:rPr[^>]*>/);
+    //             let fontStyle = fontMatch ? fontMatch[0] : "<a:rPr>"; // Default if no match
+
+    //             // **Replace Title (First text block)**
+    //             let titleMatch = slideXML.match(/<a:p>.*?<a:t>(.*?)<\/a:t>.*?<\/a:p>/s);
+    //             if (titleMatch) {
+    //                 let titleBlock = titleMatch[0];
+    //                 let updatedTitleBlock = titleBlock.replace(/<a:t>.*?<\/a:t>/s, `<a:t>${title}</a:t>`);
+    //                 slideXML = slideXML.replace(titleBlock, updatedTitleBlock);
+    //             }
+
+    //             // **Replace Subtitle (Second text block, if exists)**
+    //             let subtitleMatch = slideXML.match(/<a:p>.*?<a:t>.*?<\/a:t>.*?<\/a:p>/gs);
+    //             if (subtitleMatch && subtitleMatch.length > 1) {
+    //                 let subtitleBlock = subtitleMatch[1];
+    //                 let updatedSubtitleBlock = subtitleBlock.replace(/<a:t>.*?<\/a:t>/s, `<a:t>${subtitle || ""}</a:t>`);
+    //                 slideXML = slideXML.replace(subtitleBlock, updatedSubtitleBlock);
+    //             }
+
+    //             // **Replace Content (All remaining text blocks)**
+    //             let contentMatch = slideXML.match(/<a:p>.*?<a:t>.*?<\/a:t>.*?<\/a:p>/gs);
+    //             if (contentMatch && contentMatch.length > 2) {
+    //                 // Remove existing content beyond title/subtitle
+    //                 for (let j = 2; j < contentMatch.length; j++) {
+    //                     slideXML = slideXML.replace(contentMatch[j], "");
+    //                 }
+
+    //                 let bulletPointsXML = content.map(point =>
+    //                     `<a:p><a:r>${fontStyle}<a:t>• ${point}</a:t></a:r></a:p>`
+    //                 ).join('');
+
+    //                 slideXML = slideXML.replace(contentMatch[2], `${contentMatch[2]}${bulletPointsXML}`);
+    //             }
+
+    //             zip.file(filePath, slideXML);
+    //         }
+
+    //         if (slideFiles.length > slidesToKeep) {
+    //             let presentationXML = await zip.file("ppt/presentation.xml").async("string");
+
+    //             for (let i = slidesToKeep; i < slideFiles.length; i++) {
+    //                 let filePath = slideFiles[i];
+    //                 delete zip.files[filePath];
+
+    //                 let slideIdMatch = presentationXML.match(new RegExp(`<p:sldId[^>]+r:id="rId\\d+"[^>]*>`, "g"));
+    //                 if (slideIdMatch && slideIdMatch[i]) {
+    //                     presentationXML = presentationXML.replace(slideIdMatch[i], "");
+    //                 }
+    //             }
+
+    //             zip.file("ppt/presentation.xml", presentationXML);
+    //         }
+
+    //         const updatedPptxBlob = await zip.generateAsync({
+    //             type: "blob",
+    //             mimeType: "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+    //         });
+
+    //         saveAs(updatedPptxBlob, `Updated-${templateName}`);
+    //         setMessage("PowerPoint updated successfully!");
+    //     } catch (error) {
+    //         console.error("Error modifying PPT:", error);
+    //         setMessage("Error modifying PowerPoint. Please try again.");
+    //     } finally {
+    //         setIsLoading(false);
+    //     }
+    // };
+
+    console.log(formattedTextGemini, "formattedTextGemini")
+
 
 
     return (
