@@ -91,10 +91,10 @@ export default function PDFtoPPT() {
             // setPdfText(response.data.extractedText);
             // console.log(response.data.structuredContent)
             // setFormattedTextGemini(response.data.structuredContent)
-            setMessage("PPT Upload Successfully!");
+            setMessage("PPT Upload Successfull");
         } catch (error) {
             console.error("Error extracting PDF:", error);
-            setMessage(`Error: ${error.response?.data?.message || "Failed to extract text."}`);
+            setMessage(`Error: ${error.response?.data?.message || "Failed to extract text"}`);
         } finally {
             setIsLoading(false);
         }
