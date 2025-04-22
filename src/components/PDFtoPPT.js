@@ -78,6 +78,7 @@ export default function PDFtoPPT() {
 
         const formData = new FormData();
         formData.append("ppt", file);
+        formData.append("structuredContent",JSON.stringify(formattedTextGemini))
 
         try {
             const response = await axios.post("http://localhost:5000/upload-template-and-generate", formData, {
